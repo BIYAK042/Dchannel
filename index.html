@@ -48,7 +48,36 @@ function ago(t){let m=Math.max(0,Math.floor((Date.now()-t)/60000));return m<1?"�
 function toast(t){$("toast").textContent=t;$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",2000)}
 function avatar(b){return b==="임무"?"blue":b==="뒷 정보"?"pink":b==="괴이"?"purple":""}
 function tabs(){let arr=["전체",...S.boards];$("tabs").innerHTML=arr.map(b=>`<button class="tab ${b===S.active?"on":""}" data-board="${esc(b)}">${esc(b)}</button>`).join("");$("postBoard").innerHTML=S.boards.map(b=>`<option>${esc(b)}</option>`).join("")}
-function list(){let q=$("search").value.toLowerCase().trim();return S.posts.filter(p=>!p.hidden&&!S.hidden.includes(p.id)&&(S.active==="전체"||p.board===S.active)&&(!q||(p.title+" "+p.body+" "+p.board).toLowerCase().includes(q))).sort((a,b)=>a.pinned!==b.pinned?(a.pinned?-1:1):a.notice!==b.notice?(a.notice?-1:1):S.sort==="comments"?b.comments.length-a.comments.length:S.sort==="votes"?b.score-a.score:b.created-a.created)}
+
+function list(){
+  let q=$("search").value.toLowerCase().trim();
+
+  let arr=S.posts.filter(p=>
+    !p.hidden &&
+    !S.hidden.includes(p.id) &&
+    (S.active==="전체" || p.board===S.active) &&
+    (!q || (p.title+" "+p.body+" "+p.board).toLowerCase().includes(q))
+  );
+
+  if(S.sort==="random"){
+    arr.sort((a,b)=>
+      (a.pinned!==b.pinned ? (a.pinned?-1:1) :
+      a.notice!==b.notice ? (a.notice?-1:1) :
+      Math.random()-0.5)
+    );
+  }else{
+    arr.sort((a,b)=>
+      a.pinned!==b.pinned ? (a.pinned?-1:1) :
+      a.notice!==b.notice ? (a.notice?-1:1) :
+      S.sort==="comments" ? b.comments.length-a.comments.length :
+      S.sort==="votes" ? b.score-a.score :
+      b.created-a.created
+    );
+  }
+
+  return arr;
+}
+
 function render(){tabs();$("detail").classList.remove("open");$("detail").style.display="none";$("feed").style.display="block";$("composebar").style.display="flex";let a=list();$("feed").innerHTML=a.length?a.map(p=>`<article class="post">${p.pinned||p.notice?`<div class="pin">${p.pinned?"📌 상단 고정 ":""}${p.notice?"공지":""}</div>`:""}<div class="meta"><span class="avatar ${avatar(p.board)}">♟</span><span class="board">${esc(p.board)}</span> · <span>${esc(p.name||"No Name")}의 투고</span><button class="more" data-a="menu" data-id="${p.id}">···</button></div><h2 class="title" data-a="open" data-id="${p.id}">${esc(p.title)}</h2><div class="actions"><span><button data-a="up" data-id="${p.id}">▲</button> <span class="score">${p.score}</span> <button data-a="down" data-id="${p.id}">▼</button></span><button class="plain" data-a="open" data-id="${p.id}">● ${p.comments.length}건의 코멘트</button></div></article>`).join(""):`<div style="padding:60px 20px;text-align:center;color:#aaa">게시글이 없어. 첫 글을 남겨 봐!</div>`}
 function showDetail(id){let p=S.posts.find(x=>x.id===id);if(!p)return;S.detail=id;$("feed").style.display="none";$("detail").style.display="block";$("detail").classList.add("open");$("composebar").style.display="none";$("detail").innerHTML=`<div class="meta"><button class="plain" id="detailBack" style="font-size:26px">‹</button><span class="avatar ${avatar(p.board)}">♟</span><span class="board">${esc(p.board)}</span> · ${ago(p.created)}<button class="more" data-a="menu" data-id="${p.id}">···</button></div>${p.pinned||p.notice?`<div class="pin">${p.pinned?"📌 상단 고정 ":""}${p.notice?"공지":""}</div>`:""}<h2 class="title">${esc(p.title)}</h2><p class="body">${esc(p.body)}</p><div class="actions"><button data-a="up" data-id="${p.id}">▲ <span class="score">${p.score}</span></button><button data-a="down" data-id="${p.id}">▼</button><span>● ${p.comments.length}건의 코멘트</span></div><h3 style="margin-top:24px">코멘트 ${p.comments.length}</h3><div>${p.comments.map(c=>commentHTML(c,p.id)).join("")}</div><textarea id="commentInput" placeholder="익명으로 코멘트 남기기"></textarea><button class="btn primary" id="sendComment">코멘트 등록</button>`;$("detailBack").onclick=render;$("sendComment").onclick=()=>{let t=$("commentInput").value.trim();if(!t)return toast("내용을 입력해 줘.");p.comments.push({id:uid(),name:"No Name",body:t,time:Date.now(),score:0,replies:[]});save();showDetail(id);toast("코멘트를 등록했어.")}}
 function commentHTML(c,pid){return `<div class="comment"><div class="commentmeta"><span class="avatar">♟</span><span class="commentname">No Name</span><span>${ago(c.time)}</span><button class="more" data-a="cmenu" data-id="${pid}" data-cid="${c.id}">···</button></div><div class="commentbody">${esc(c.body)}</div><div class="commenttools"><button data-a="reply" data-id="${pid}" data-cid="${c.id}">● 회신</button>　<button data-a="cup" data-id="${pid}" data-cid="${c.id}">▲ ${c.score||0}</button></div><div class="reply" id="r-${c.id}"><textarea placeholder="답글 작성"></textarea><div class="row"><button class="btn" data-a="cancelreply" data-cid="${c.id}">취소</button><button class="btn primary" data-a="sendreply" data-id="${pid}" data-cid="${c.id}">답글 등록</button></div></div>${(c.replies||[]).map(r=>`<div class="comment" style="margin-left:20px;background:#fafafa;padding:10px"><div class="commentmeta"><span class="avatar">♟</span><b class="commentname">No Name</b> · ${ago(r.time)}<button class="more" data-a="rmenu" data-id="${pid}" data-cid="${c.id}" data-rid="${r.id}">···</button></div><div class="commentbody">${esc(r.body)}</div></div>`).join("")}</div>`}
@@ -58,13 +87,13 @@ function action(a,id,cid,rid){$("modalback").classList.remove("open");let p=S.po
 $("tabs").onclick=e=>{let b=e.target.closest("[data-board]");if(b){S.active=b.dataset.board;render()}}
 $("feed").onclick=e=>{let b=e.target.closest("[data-a]");if(!b)return;let p=S.posts.find(x=>x.id===b.dataset.id);if(b.dataset.a==="open")showDetail(p.id);if(b.dataset.a==="menu")postMenu(p.id);if(b.dataset.a==="up"){p.score++;save();render()}if(b.dataset.a==="down"){p.score--;save();render()}}
 $("detail").onclick=e=>{let b=e.target.closest("[data-a]");if(!b)return;let {id,cid,rid}=b.dataset,a=b.dataset.a,p=S.posts.find(x=>x.id===id),c=p?.comments.find(x=>x.id===cid);if(a==="menu")postMenu(id);if(a==="cmenu"||a==="rmenu")action(a,id,cid,rid);if(a==="up"){p.score++;save();showDetail(id)}if(a==="down"){p.score--;save();showDetail(id)}if(a==="cup"){c.score=(c.score||0)+1;save();showDetail(id)}if(a==="reply")$("r-"+cid).classList.toggle("open");if(a==="cancelreply")$("r-"+cid).classList.remove("open");if(a==="sendreply"){let t=$("r-"+cid).querySelector("textarea").value.trim();if(!t)return toast("답글을 입력해 줘.");c.replies=c.replies||[];c.replies.push({id:uid(),body:t,time:Date.now()});save();showDetail(id)}}
-$("modalOptions").onclick=e=>{let b=e.target.closest("[data-m]");if(!b)return;let a=b.dataset.m,id=b.dataset.id;if(a==="sort-latest"||a==="sort-comments"||a==="sort-votes"){S.sort=a.slice(5);$("modalback").classList.remove("open");render();return}if(a==="all"){S.active="전체";$("modalback").classList.remove("open");render();return}if(a==="unhide"){S.hidden=[];save();$("modalback").classList.remove("open");render();return}if(a==="admin"){$("modalback").classList.remove("open");$("admin").classList.toggle("open");return}action(a,id,b.dataset.cid,b.dataset.rid)}
+$("modalOptions").onclick=e=>{let b=e.target.closest("[data-m]");if(!b)return;let a=b.dataset.m,id=b.dataset.id;if(a==="sort-random"||a==="sort-comments"||a==="sort-votes"){S.sort=a.slice(5);$("modalback").classList.remove("open");render();return}if(a==="all"){S.active="전체";$("modalback").classList.remove("open");render();return}if(a==="unhide"){S.hidden=[];save();$("modalback").classList.remove("open");render();return}if(a==="admin"){$("modalback").classList.remove("open");$("admin").classList.toggle("open");return}action(a,id,b.dataset.cid,b.dataset.rid)}
 $("closeModal").onclick=()=>$("modalback").classList.remove("open");$("modalback").onclick=e=>{if(e.target===$("modalback"))$("modalback").classList.remove("open")}
 $("newPost").onclick=()=>{S.edit=null;$("formTitle").textContent="새 게시글";$("postTitle").value="";$("postBody").value="";$("postBoard").value=S.active==="전체"?S.boards[0]:S.active;$("composer").classList.add("open");$("composer").scrollIntoView({behavior:"smooth",block:"start"})}
 $("cancel").onclick=()=>$("composer").classList.remove("open")
 $("savePost").onclick=()=>{let title=$("postTitle").value.trim(),body=$("postBody").value.trim(),board=$("postBoard").value;if(!title||!body)return toast("제목과 내용을 입력해 줘.");if(S.edit){let p=S.posts.find(x=>x.id===S.edit);if(p){p.title=title;p.body=body;p.board=board}S.edit=null}else S.posts.unshift({id:uid(),board,title,body,score:0,created:Date.now(),comments:[],pinned:false,notice:false,own:true});save();$("composer").classList.remove("open");render();toast("게시글을 저장했어.")}
 $("search").oninput=render;$("focusSearch").onclick=()=>$("search").focus()
-$("sortBtn").onclick=()=>modal("글 정렬",[{label:"최신순",a:"sort-latest"},{label:"댓글 많은 순",a:"sort-comments"},{label:"추천 많은 순",a:"sort-votes"}])
+$("sortBtn").onclick=()=>modal("글 정렬",[{label:"무작위 순",a:"sort-random"},{label:"최신순",a:"sort-latest"},{label:"댓글 많은 순",a:"sort-comments"},{label:"추천 많은 순",a:"sort-votes"}])
 $("menuBtn").onclick=()=>modal("메뉴",[{label:"전체 게시글",a:"all"},{label:"숨긴 글 다시 보기",a:"unhide"},{label:"신고 내역 보기",a:"reports"},{label:"제작자 설정 열기",a:"admin"}])
 $("profile").onclick=$("adminBtn").onclick=()=>$("admin").classList.toggle("open")
 $("adminToggle").onclick=()=>{S.admin=!S.admin;$("adminToggle").textContent=S.admin?"관리 모드 끄기":"관리 모드 켜기";$("adminStatus").textContent=S.admin?"관리 모드가 켜져 있어.":"관리 모드가 꺼져 있어.";toast(S.admin?"관리 모드 켜짐":"관리 모드 꺼짐");render()}
